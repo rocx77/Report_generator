@@ -1,0 +1,7 @@
+docx
+selenium
+webdriver_manager
+lxml
+customtkinter
+python-dotenv
+requests

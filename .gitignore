@@ -1,0 +1,34 @@
+# Byte-compiled / cache / virtual env
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+c2wenv/
+venv/
+ENV/
+
+# Word and screenshot output
+*.docx
+*_screenshot_*.png
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python test and coverage
+.coverage
+htmlcov/
+
+# GitHub workflows
+.github/
+
+# Misc
+*.log
