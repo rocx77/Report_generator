@@ -1,7 +1,8 @@
-import customtkinter as ctk  # type: ignore
+import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
 import c2w
+from typing import List, Dict, Tuple, Any
 
 
 class CodeReportApp(ctk.CTk):
@@ -9,7 +10,13 @@ class CodeReportApp(ctk.CTk):
         super().__init__()
 
         self.title("Code to Word Report Generator")
-        self.geometry("600x950+300+20")    # you can make your window adjustments here
+        
+        # Configure the main grid for responsiveness
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
+        # Set an initial size but allow it to be dynamic
+        self.geometry("600x700")
 
         ctk.set_appearance_mode("dark")
 
@@ -17,34 +24,41 @@ class CodeReportApp(ctk.CTk):
         self.files = []
         self.output_path = ""
 
-        # Main frame to hold everything
+        # Main frame to hold all content, and make it resize with the window
         main_frame = ctk.CTkFrame(self)
-        main_frame.pack(pady=20, padx=20, fill="both", expand=True)
+        main_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        main_frame.grid_columnconfigure(0, weight=1)
+        
+        # Create input fields in a dedicated frame
+        input_frame = self.create_input_fields(main_frame)
+        input_frame.grid(row=0, column=0, pady=(0, 10), sticky="ew")
 
-        # Metadata inputs
-        self.create_input_fields(main_frame)
+        # File selection and reorder section
+        file_section_frame = ctk.CTkFrame(main_frame)
+        file_section_frame.grid(row=1, column=0, pady=10, sticky="ew")
+        file_section_frame.grid_columnconfigure(0, weight=1)
 
-        # File selection buttons
-        file_frame = ctk.CTkFrame(main_frame)
-        file_frame.pack(pady=10, padx=10, fill="x")
-        ctk.CTkButton(file_frame, text="Select Code Files", command=self.select_files).pack(pady=10, padx=10)
+        # File selection button
+        ctk.CTkButton(file_section_frame, text="Select Code Files", command=self.select_files).grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
-        # Scrollable frame for reordering files
-        self.file_list_frame = ctk.CTkScrollableFrame(main_frame, label_text="Reorder Files (Drag Up/Down)")
-        self.file_list_frame.pack(pady=10, padx=10, fill="both", expand=True)
-
+        # Scrollable frame for reordering files, placed in a new row and made to expand
+        self.file_list_frame = ctk.CTkScrollableFrame(main_frame, label_text="Reorder Files")
+        self.file_list_frame.grid(row=2, column=0, pady=10, sticky="nsew", rowspan=2)
+        self.file_list_frame.grid_columnconfigure(0, weight=1)
+        
         # Output folder button
-        ctk.CTkButton(main_frame, text="Select Output Folder", command=self.select_output_path).pack(pady=10, padx=10)
-
+        ctk.CTkButton(main_frame, text="Select Output Folder", command=self.select_output_path).grid(row=4, column=0, pady=10, padx=10, sticky="ew")
+        
         # Generate button
-        ctk.CTkButton(main_frame, text="Generate Report", command=self.generate_report).pack(pady=20, padx=10)
+        ctk.CTkButton(main_frame, text="Generate Report", command=self.generate_report).grid(row=5, column=0, pady=20, padx=10, sticky="ew")
 
         self.status_label = ctk.CTkLabel(main_frame, text="")
-        self.status_label.pack(pady=10)
+        self.status_label.grid(row=6, column=0, pady=10, sticky="ew")
 
     def create_input_fields(self, parent):
         frame = ctk.CTkFrame(parent)
-        frame.pack(pady=20, padx=20, fill="x")
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_columnconfigure(1, weight=1)
 
         self.entries = {}
         field_map = {
@@ -55,19 +69,21 @@ class CodeReportApp(ctk.CTk):
             'Semester': 'semester',
             'Experiment Number': 'experiment_no'
         }
-        for label_text, key_name in field_map.items():
-            label = ctk.CTkLabel(frame, text=label_text)
-            label.pack(anchor="w", padx=10)
-            entry = ctk.CTkEntry(frame, width=500)
-            entry.pack(pady=5, padx=10)
+        for i, (label_text, key_name) in enumerate(field_map.items()):
+            label = ctk.CTkLabel(frame, text=label_text, anchor="w")
+            label.grid(row=i, column=0, padx=10, pady=5, sticky="w")
+            
+            entry = ctk.CTkEntry(frame)
+            entry.grid(row=i, column=1, padx=10, pady=5, sticky="ew")
             self.entries[key_name] = entry
+        
+        return frame
 
     def update_file_list_display(self):
         # Clear existing widgets from the scrollable frame
         for widget in self.file_list_frame.winfo_children():
             widget.destroy()
 
-        # Populate the frame with files and buttons
         if not self.files:
             self.file_list_frame.configure(label_text="No files selected.")
             return
@@ -76,25 +92,22 @@ class CodeReportApp(ctk.CTk):
         for i, file_path in enumerate(self.files):
             file_name = os.path.basename(file_path)
             
-            # Create a sub-frame for each file row
             row_frame = ctk.CTkFrame(self.file_list_frame)
-            row_frame.pack(pady=2, padx=5, fill="x")
+            row_frame.grid(row=i, column=0, pady=2, padx=5, sticky="ew")
+            row_frame.grid_columnconfigure(0, weight=1)
 
-            # File Name Label
             file_label = ctk.CTkLabel(row_frame, text=f"{i+1}. {file_name}", anchor="w")
-            file_label.pack(side="left", fill="x", expand=True, padx=5)
+            file_label.grid(row=0, column=0, padx=5, pady=2, sticky="ew")
 
-            # Down Button
-            btn_down = ctk.CTkButton(row_frame, text="▼", width=40, command=lambda idx=i: self.move_file_down(idx))
-            btn_down.pack(side="right", padx=2)
-            if i == len(self.files) - 1:
-                btn_down.configure(state="disabled")
-
-            # Up Button
             btn_up = ctk.CTkButton(row_frame, text="▲", width=40, command=lambda idx=i: self.move_file_up(idx))
-            btn_up.pack(side="right", padx=2)
+            btn_up.grid(row=0, column=1, padx=2, pady=2)
             if i == 0:
                 btn_up.configure(state="disabled")
+
+            btn_down = ctk.CTkButton(row_frame, text="▼", width=40, command=lambda idx=i: self.move_file_down(idx))
+            btn_down.grid(row=0, column=2, padx=2, pady=2)
+            if i == len(self.files) - 1:
+                btn_down.configure(state="disabled")
 
     def move_file_up(self, index):
         if index > 0:
@@ -107,9 +120,6 @@ class CodeReportApp(ctk.CTk):
             self.update_file_list_display()
 
     def select_files(self):
-        """
-        Handles file selection via a button click.
-        """
         selected_files = filedialog.askopenfilenames(
             title="Select Code Files",
             filetypes=[
@@ -128,16 +138,10 @@ class CodeReportApp(ctk.CTk):
             self.update_file_list_display()
 
     def select_output_path(self):
-        """
-        Handles output folder selection.
-        """
         self.output_path = filedialog.askdirectory(title="Select Output Folder")
         self.status_label.configure(text=f"Output path set to: {self.output_path}")
 
     def generate_report(self):
-        """
-        Generates the final report.
-        """
         if not self.files or not self.output_path:
             messagebox.showerror("Error", "Please select files and output folder.")
             return

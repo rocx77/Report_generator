@@ -30,5 +30,10 @@ htmlcov/
 # GitHub workflows
 .github/
 
+# PyInstaller build files
+build/
+dist/
+*.spec
+
 # Misc
 *.log

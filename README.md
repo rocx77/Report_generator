@@ -41,15 +41,24 @@ python c2w.py example.py example.html
 
 ### Graphical User Interface (GUI)
 1. Run the GUI application:
-	```bash
-	python c2w_APP.py
-	```
+   ```bash
+   python c2w_APP.py
+   ```
 2. Fill in your assignment metadata in the form fields.
 3. Click "Select Code Files" to choose your code files (supports multiple selection and reordering).
 4. Click "Select Output Folder" to choose where the Word report will be saved.
 5. Click "Generate Report" to create the Word document. Success/failure messages will be shown in the app.
 
-## Notes
+### Standalone Executable (No Python Required)
+1. Download the `Code2word.exe` file from the releases.
+2. Double-click to run the GUI application directly.
+3. No Python installation or dependencies required!
+
+## Building Executable (For Developers)
+To create your own executable:
+1. Install PyInstaller: `pip install pyinstaller`
+2. Build: `pyinstaller Code2word.spec`
+3. Find the executable in the `dist/` folder.## Notes
 - For HTML/CSS/JS files, Chrome must be installed and accessible.
 - Screenshots are taken in headless mode; adjust `VIEWPORT_HEIGHT` in `c2w.py` if needed.
 - For C/C++ files, GCC/G++ must be installed and available in PATH.
