@@ -1,12 +1,77 @@
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog
 import os
 import c2w
 from typing import List, Dict, Tuple, Any
 
 
+class InputDialog(ctk.CTkToplevel):
+    def __init__(self, parent, prompt):
+        super().__init__(parent)
+        
+        self.title("Input Required")
+        self.geometry("400x150")
+        self.transient(parent)
+        self.grab_set()
+        
+        # Center the dialog on parent window
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - (400 // 2)
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - (150 // 2)
+        self.geometry(f"400x150+{x}+{y}")
+        
+        self.result = None
+        self.protocol("WM_DELETE_WINDOW", self.cancel_clicked)  # Handle window close
+        
+        # Create prompt label
+        prompt_label = ctk.CTkLabel(self, text=prompt, wraplength=350)
+        prompt_label.pack(pady=10, padx=20)
+        
+        # Create input entry
+        self.entry = ctk.CTkEntry(self, width=350)
+        self.entry.pack(pady=10, padx=20)
+        self.entry.focus()
+        
+        # Set a reasonable timeout to prevent hanging
+        self.after(30000, self.timeout)  # 30 second timeout
+        
+        # Create buttons frame
+        button_frame = ctk.CTkFrame(self)
+        button_frame.pack(pady=10)
+        
+        ok_button = ctk.CTkButton(button_frame, text="OK", command=self.ok_clicked)
+        ok_button.pack(side="left", padx=5)
+        
+        cancel_button = ctk.CTkButton(button_frame, text="Cancel", command=self.cancel_clicked)
+        cancel_button.pack(side="left", padx=5)
+        
+        # Bind Enter key to OK
+        self.bind('<Return>', lambda e: self.ok_clicked())
+        self.entry.bind('<Return>', lambda e: self.ok_clicked())
+        
+    def ok_clicked(self):
+        self.result = self.entry.get()
+        self.destroy()
+        
+    def cancel_clicked(self):
+        self.result = None
+        self.destroy()
+        
+    def timeout(self):
+        """Handle the timeout case to prevent hanging"""
+        if self.winfo_exists():
+            messagebox.showinfo("Timeout", "Input dialog timed out. Using default value.")
+            self.result = ""
+            self.destroy()
+        self.destroy()
+
+
 class CodeReportApp(ctk.CTk):
     def __init__(self):
+        # Set appearance mode before init for better startup performance
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
+        
         super().__init__()
 
         self.title("Code to Word Report Generator")
@@ -16,13 +81,15 @@ class CodeReportApp(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         
         # Set an initial size but allow it to be dynamic
-        self.geometry("600x700")
-
-        ctk.set_appearance_mode("dark")
-
+        self.geometry("600x750")
+        
+        # Set initial variables
         self.metadata = {}
         self.files = []
         self.output_path = ""
+        
+        # Optimize rendering
+        self.update_idletasks()
 
         # Main frame to hold all content, and make it resize with the window
         main_frame = ctk.CTkFrame(self)
@@ -123,9 +190,10 @@ class CodeReportApp(ctk.CTk):
         selected_files = filedialog.askopenfilenames(
             title="Select Code Files",
             filetypes=[
-                ("All Supported Files", "*.py *.c *.cpp *.html *.css *.js *.php"),
+                ("All Supported Files", "*.py *.c *.cpp *.java *.html *.css *.js *.php"),
                 ("Python Files", "*.py"),
                 ("C/C++ Files", "*.c *.cpp"),
+                ("Java Files", "*.java"),
                 ("HTML/CSS Files", "*.html *.css"),
                 ("JavaScript Files", "*.js"),
                 ("PHP Files", "*.php"),
@@ -141,21 +209,123 @@ class CodeReportApp(ctk.CTk):
         self.output_path = filedialog.askdirectory(title="Select Output Folder")
         self.status_label.configure(text=f"Output path set to: {self.output_path}")
 
+    def gui_input_callback(self, file_name=None, prompts=None):
+        """
+        GUI callback function for collecting user input during code execution.
+        This method is called when interactive programs need user input.
+        
+        Args:
+            file_name (str): The name of the file being executed (optional)
+            prompts (list): A list of prompts to show to the user (optional)
+        """
+        if prompts and isinstance(prompts, list):
+            # Handle multiple prompts for C/C++ files
+            results = []
+            for prompt in prompts:
+                dialog = InputDialog(self, prompt)
+                self.wait_window(dialog)
+                if dialog.result is None:  # User canceled
+                    return None
+                results.append(dialog.result)
+            return results
+        else:
+            # Handle single prompt for Python/other files
+            dialog = InputDialog(self, prompts if prompts else "Enter input:")
+            self.wait_window(dialog)
+            return dialog.result
+
     def generate_report(self):
         if not self.files or not self.output_path:
             messagebox.showerror("Error", "Please select files and output folder.")
             return
 
         metadata = {key: entry.get() for key, entry in self.entries.items()}
-
-        try:
-            c2w.create_word_doc(self.files, metadata, self.output_path)
-            messagebox.showinfo("Success", "Report generated successfully!")
-            self.status_label.configure(text="✅ Report generated successfully.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate report:\n{str(e)}")
+        
+        # Create a progress indicator
+        progress_window = ctk.CTkToplevel(self)
+        progress_window.title("Generating Report")
+        progress_window.geometry("400x150")
+        progress_window.transient(self)
+        progress_window.grab_set()
+        
+        # Center the progress window
+        progress_window.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width() // 2) - (400 // 2)
+        y = self.winfo_y() + (self.winfo_height() // 2) - (150 // 2)
+        progress_window.geometry(f"400x150+{x}+{y}")
+        
+        # Add a label
+        progress_label = ctk.CTkLabel(progress_window, text="Generating report...\nPlease wait, this may take a few moments.", font=("Arial", 14))
+        progress_label.pack(pady=20)
+        
+        # Add a progress bar
+        progress_bar = ctk.CTkProgressBar(progress_window, width=300)
+        progress_bar.pack(pady=10)
+        progress_bar.start()
+        
+        # Use a background thread for processing to keep GUI responsive
+        import threading
+        
+        def process_report():
+            try:
+                output_file = c2w.create_word_doc(self.files, metadata, self.output_path, gui_input_callback=self.gui_input_callback)
+                
+                # Update UI on the main thread
+                self.after(100, lambda: self.report_complete(progress_window, output_file))
+            except Exception as e:
+                # Handle error on the main thread
+                self.after(100, lambda: self.report_error(progress_window, str(e)))
+        
+        # Start processing in background
+        threading.Thread(target=process_report, daemon=True).start()
+    
+    def report_complete(self, progress_window, output_file):
+        """Called when report generation is complete"""
+        progress_window.destroy()
+        messagebox.showinfo("Success", f"Report generated successfully!\nSaved to: {output_file}")
+        self.status_label.configure(text="✅ Report generated successfully.")
+        
+        # Offer to open the file
+        if messagebox.askyesno("Open File", "Would you like to open the generated report?"):
+            import subprocess
+            import platform
+            
+            if platform.system() == 'Windows':
+                subprocess.Popen(['start', '', output_file], shell=True)
+            elif platform.system() == 'Darwin':  # macOS
+                subprocess.Popen(['open', output_file])
+            else:  # Linux
+                subprocess.Popen(['xdg-open', output_file])
+    
+    def report_error(self, progress_window, error_message):
+        """Called when report generation encounters an error"""
+        progress_window.destroy()
+        messagebox.showerror("Error", f"Failed to generate report:\n{error_message}")
+        self.status_label.configure(text="❌ Error generating report.")
 
 
 if __name__ == '__main__':
+    # Optimize startup
+    import sys
+    import os
+    
+    # Disable error reporting for faster startup
+    if hasattr(sys, 'frozen'):
+        # We're running in a PyInstaller bundle
+        os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
+    
+    # Disable unnecessary debug logging
+    import logging
+    logging.basicConfig(level=logging.ERROR)
+    
+    # Initialize the app
     app = CodeReportApp()
+    
+    # Schedule a garbage collection after startup
+    def post_startup():
+        import gc
+        gc.collect()
+    app.after(1000, post_startup)
+    
+    # Start the app
     app.mainloop()
